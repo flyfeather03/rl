@@ -38,6 +38,12 @@ def object_grasped_mask(
     force_threshold: float = 1.0,
 ) -> torch.Tensor:
     """Return grasp state per environment for a parallel gripper setup."""
+    if hasattr(env.cfg, "grasp_diff_threshold"):
+        diff_threshold = env.cfg.grasp_diff_threshold
+    if hasattr(env.cfg, "grasp_force_threshold"):
+        force_threshold = env.cfg.grasp_force_threshold
+    require_contact = getattr(env.cfg, "grasp_require_contact", True)
+    require_both_fingers = getattr(env.cfg, "grasp_require_both_fingers", True)
     robot: Articulation = env.scene[robot_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
     obj: RigidObject = env.scene[object_cfg.name]
@@ -46,12 +52,15 @@ def object_grasped_mask(
     ee_pos = ee_frame.data.target_pos_w[:, 0, :]
     pose_close = torch.linalg.vector_norm(object_pos - ee_pos, dim=1) < diff_threshold
 
-    # If finger contact sensor exists, require both fingers to have force over threshold.
-    if "contact_grasp" in env.scene.keys() and env.scene["contact_grasp"] is not None:
+    # If finger contact sensor exists, optionally require finger contact over threshold.
+    if require_contact and "contact_grasp" in env.scene.keys() and env.scene["contact_grasp"] is not None:
         contact_force = env.scene["contact_grasp"].data.net_forces_w
         force_norm = torch.linalg.vector_norm(contact_force, dim=2)
-        both_fingers_ok = torch.all(force_norm > force_threshold, dim=1)
-        pose_close = torch.logical_and(pose_close, both_fingers_ok)
+        if require_both_fingers:
+            contact_ok = torch.all(force_norm > force_threshold, dim=1)
+        else:
+            contact_ok = torch.any(force_norm > force_threshold, dim=1)
+        pose_close = torch.logical_and(pose_close, contact_ok)
 
     # Require gripper to be closed enough compared to the configured open position.
     if hasattr(env.cfg, "gripper_joint_names"):

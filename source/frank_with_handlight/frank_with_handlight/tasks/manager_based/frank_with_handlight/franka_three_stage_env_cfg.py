@@ -165,7 +165,19 @@ class EventCfg:
 class RewardsCfg:
     stage_move = RewTerm(func=mdp.move_stage_reward, params={"std": 0.08, "pregrasp_z": 0.08, "min_lift": 0.08}, weight=2.0)
 
-    stage_grasp = RewTerm(func=mdp.grasp_stage_reward, params={"pose_std": 0.06, "min_lift": 0.08}, weight=5.0)
+    stage_grasp = RewTerm(
+        func=mdp.grasp_stage_reward,
+        params={
+            "pose_std": 0.06,
+            "min_lift": 0.08,
+            "close_distance": 0.09,
+            "close_bonus": 0.6,
+            "contact_bonus": 0.3,
+            "grasp_bonus": 1.0,
+            "force_threshold": 0.2,
+        },
+        weight=5.0,
+    )
 
     stage_lift = RewTerm(
         func=mdp.lift_stage_reward,

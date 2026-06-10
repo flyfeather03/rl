@@ -39,7 +39,12 @@ class FrankaLongCuboidThreeStageEnvCfg(FrankaThreeStageLiftEnvCfg):
         # Parameters read by grasp-stage logic.
         self.gripper_joint_names = ["panda_finger_joint1", "panda_finger_joint2"]
         self.gripper_open_val = 0.04
+        self.gripper_closed_val = 0.0
         self.gripper_threshold = 0.004
+        self.grasp_diff_threshold = 0.07
+        self.grasp_force_threshold = 0.2
+        self.grasp_require_contact = True
+        self.grasp_require_both_fingers = False
 
         marker_cfg = FRAME_MARKER_CFG.copy()
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
