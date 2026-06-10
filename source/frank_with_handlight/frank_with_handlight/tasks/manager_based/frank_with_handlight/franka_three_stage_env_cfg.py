@@ -37,9 +37,6 @@ class ThreeStageObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
                 CuboidCfg(size=(0.12, 0.035, 0.035), physics_material=RigidBodyMaterialCfg(static_friction=0.9)),
-                CuboidCfg(size=(0.10, 0.04, 0.03), physics_material=RigidBodyMaterialCfg(static_friction=0.9)),
-                CuboidCfg(size=(0.14, 0.03, 0.04), physics_material=RigidBodyMaterialCfg(static_friction=0.9)),
-                CuboidCfg(size=(0.09, 0.05, 0.03), physics_material=RigidBodyMaterialCfg(static_friction=0.9)),
             ],
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 solver_position_iteration_count=16,
@@ -51,7 +48,7 @@ class ThreeStageObjectTableSceneCfg(InteractiveSceneCfg):
             ),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.12),
-            random_choice=True,
+            random_choice=False,
         ),
     )
 
@@ -168,12 +165,15 @@ class RewardsCfg:
     stage_grasp = RewTerm(
         func=mdp.grasp_stage_reward,
         params={
-            "pose_std": 0.06,
+            "pose_std": 0.05,
             "min_lift": 0.08,
-            "close_distance": 0.09,
-            "close_bonus": 0.6,
-            "contact_bonus": 0.3,
-            "grasp_bonus": 1.0,
+            "xy_close_distance": 0.035,
+            "grasp_z_offset": 0.025,
+            "grasp_z_tolerance": 0.035,
+            "close_bonus": 0.8,
+            "contact_bonus": 0.4,
+            "grasp_bonus": 1.2,
+            "early_close_penalty": 0.25,
             "force_threshold": 0.2,
         },
         weight=5.0,
@@ -181,7 +181,7 @@ class RewardsCfg:
 
     stage_lift = RewTerm(
         func=mdp.lift_stage_reward,
-        params={"min_lift": 0.08, "target_height": 0.14},
+        params={"lift_start_height": 0.045, "target_height": 0.14},
         weight=8.0,
     )
 

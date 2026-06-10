@@ -81,41 +81,47 @@ def move_stage_reward(
 
 def grasp_stage_reward(
     env: ManagerBasedRLEnv,
-    pose_std: float = 0.06,
+    pose_std: float = 0.05,
     min_lift: float = 0.08,
-    close_distance: float = 0.09,
-    close_bonus: float = 0.6,
-    contact_bonus: float = 0.3,
-    grasp_bonus: float = 1.0,
+    xy_close_distance: float = 0.035,
+    grasp_z_offset: float = 0.025,
+    grasp_z_tolerance: float = 0.035,
+    close_bonus: float = 0.8,
+    contact_bonus: float = 0.4,
+    grasp_bonus: float = 1.2,
+    early_close_penalty: float = 0.25,
     force_threshold: float = 0.2,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
 ) -> torch.Tensor:
-    """Stage-2 reward: approach the object, close the gripper, and establish contact."""
+    """Stage-2 reward: align, descend, then close the gripper around the object."""
     ee_pos, obj_pos = _ee_and_object_pos(env, object_cfg, ee_frame_cfg)
-    dist = torch.linalg.vector_norm(obj_pos - ee_pos, dim=1)
+    xy_dist = torch.linalg.vector_norm(obj_pos[:, :2] - ee_pos[:, :2], dim=1)
+    z_error = torch.abs(ee_pos[:, 2] - (obj_pos[:, 2] + grasp_z_offset))
 
     grasped = object_grasped_mask(env)
     lifted = obj_pos[:, 2] > min_lift
     stage_mask = ~lifted
 
-    pose_reward = 1.0 - torch.tanh(dist / pose_std)
-    near_object = dist < close_distance
+    xy_reward = 1.0 - torch.tanh(xy_dist / pose_std)
+    z_reward = 1.0 - torch.tanh(z_error / grasp_z_tolerance)
+    close_window = (xy_dist < xy_close_distance) & (z_error < grasp_z_tolerance)
     close_reward = _gripper_closed_progress(env, robot_cfg)
     contact_reward = _finger_contact_progress(env, force_threshold)
 
-    reward = pose_reward
-    reward += near_object.float() * close_bonus * close_reward
-    reward += near_object.float() * contact_bonus * contact_reward
+    reward = 0.65 * xy_reward + 0.35 * z_reward
+    reward += close_window.float() * close_bonus * close_reward
+    reward += close_window.float() * contact_bonus * contact_reward
     reward += grasp_bonus * grasped.float()
+    reward -= (~close_window).float() * early_close_penalty * close_reward
 
     return stage_mask.float() * reward
 
 
 def lift_stage_reward(
     env: ManagerBasedRLEnv,
-    min_lift: float = 0.08,
+    lift_start_height: float = 0.045,
     target_height: float = 0.14,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> torch.Tensor:
@@ -124,10 +130,10 @@ def lift_stage_reward(
     height = obj.data.root_pos_w[:, 2]
 
     grasped = object_grasped_mask(env)
-    stage_mask = grasped & (height > min_lift)
-
-    height_progress = torch.clamp((height - min_lift) / max(target_height - min_lift, 1e-6), min=0.0, max=1.0)
-    return stage_mask.float() * height_progress
+    height_progress = torch.clamp(
+        (height - lift_start_height) / max(target_height - lift_start_height, 1e-6), min=0.0, max=1.0
+    )
+    return grasped.float() * height_progress
 
 
 def lift_success_bonus(
